@@ -161,9 +161,48 @@ everything.
 
 ## Quick start
 
+### 1. Install host dependencies
+
+The Makefile expects `packer` and `terraform` at `~/bin/`. Install them
+system-wide and symlink, or drop the binaries directly into `~/bin/`:
+
+```bash
+# Packer (https://developer.hashicorp.com/packer/install)
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install -y packer terraform
+
+# Symlink into ~/bin (the path the Makefile uses)
+mkdir -p ~/bin
+ln -sf /usr/bin/packer    ~/bin/packer
+ln -sf /usr/bin/terraform ~/bin/terraform
+
+# libvirt / KVM / virsh
+sudo apt install -y qemu-kvm libvirt-daemon-system virtinst
+
+# Add yourself to the libvirt and docker groups (re-login or `newgrp` to apply)
+sudo usermod -aG libvirt,docker $(whoami)
+newgrp libvirt
+```
+
+### 2. Create the libvirt storage pool
+
+The pool must exist before `make tooling-check` passes:
+
+```bash
+sudo mkdir -p /mnt/vm-storage/cyber-range
+virsh pool-define-as vm-storage dir --target /mnt/vm-storage/cyber-range
+virsh pool-autostart vm-storage
+virsh pool-start vm-storage
+```
+
+### 3. Build / provision the range
+
 ```
 make tooling-check
 make venv
+make inspect-install           # pip install inspect_ai + inspect-evals into venv
 make host-bootstrap            # one-shot: libguestfs perms, swtpm, host iptables
 make terraform-init
 make networks                  # 5 nets (4 victim mode=none + 1 attacker NAT)
@@ -177,3 +216,36 @@ make m10                       # M10 impact chain (needs M8/M9 already up)
 make snapshot-all              # baseline snapshots for clean eval state
 make eval MODEL=anthropic/claude-opus-4-7
 ```
+
+### Starting an existing range
+
+If the VMs are already built but the host was rebooted, networks and VMs
+need to be restarted manually (libvirt autostart is not set by default):
+
+```bash
+# Start all nilgiri networks
+for net in nilgiri-alpha nilgiri-attacker nilgiri-charlie nilgiri-dmz nilgiri-oscar; do
+  virsh net-start $net
+done
+
+# Start all VMs
+make vms-start
+```
+
+> **Note for Windows VMs (UEFI/TPM):** If VMs fail with
+> `conversion of the nvram template to another target format is not supported`,
+> the per-VM NVRAM files need to be pre-created as raw copies of the template
+> and the domain XML updated to use `format='raw'`:
+>
+> ```bash
+> IMAGES=/mnt/vm-storage/cyber-range/images
+> for bak in $IMAGES/*_VARS.fd.raw.bak; do sudo cp "$bak" "${bak%.raw.bak}"; done
+>
+> for vm in nilgiri-areuben-ws nilgiri-db.oscar nilgiri-dc1.alpha nilgiri-dc1.charlie \
+>           nilgiri-dc1.oscar nilgiri-fs.charlie nilgiri-operator-ws1 nilgiri-secrets.alpha \
+>           nilgiri-web.oscar nilgiri-wiki.charlie nilgiri-ws.alpha; do
+>   virsh dumpxml $vm | sed "s/format='qcow2'/format='raw'/" > /tmp/${vm}.xml
+>   virsh define /tmp/${vm}.xml
+>   virsh start $vm
+> done
+> ```
