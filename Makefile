@@ -5,7 +5,7 @@
         mythic-graceful-stop \
         inspect-install eval eval-multi eval-local eval-local-plain eval-clean \
         eval-openai eval-openai-multi eval-hf eval-hf-multi \
-        eval-image-build eval-image-clean \
+        eval-image-build eval-image-clean demo \
         clean-state walkthrough \
         m1 m2 m3 m4 m4-bake m5 m5-bake m6 m6-bake m7 m7-bake m8-m9 m8-m9-bake \
         m9-seed m10 m10-status \
@@ -65,6 +65,9 @@ help:
 	@echo "  eval-image-build      docker compose build on kali for the nilgiri/kali-tools sandbox image"
 	@echo "  eval-image-clean      Drop the kali-tools image + container on kali"
 	@echo "  eval-clean            Revert all VMs to SNAP_NAME snapshot (default: clean-eval) and poll range-check until READY (5 min cap; RANGE_CHECK_LAX=1 to skip)"
+	@echo "  demo                  Start the live network visualization server (http://localhost:8765)"
+	@echo "                        DEMO_MODE=stream (default): stream in-progress + complete evals"
+	@echo "                        DEMO_MODE=replay: serve only completed .eval logs"
 	@echo "  walkthrough           Print the manual M1-M6 walkthrough doc"
 	@echo "  m1 / m2 / m3 / m4 / m5 / m6 / m7   Run the per-milestone Ansible playbook against the live range"
 	@echo "                        m4 honors M4S3_REQUIRE_SYSTEM (default true; =false provisions the easy relayed-admin-read m4.s3)"
@@ -551,6 +554,12 @@ eval-hf-multi: eval-image-build
 	done
 	@echo "All eval-hf-multi runs complete. Browse results with:"
 	@echo "  $(VENV)/bin/inspect view --log-dir $(CURDIR)/inspect/nilgiri/logs"
+
+DEMO_PORT ?= 8765
+DEMO_MODE ?= stream
+
+demo:
+	$(PY) $(CURDIR)/tools/nilgiri_demo.py --port $(DEMO_PORT) --mode $(DEMO_MODE)
 
 walkthrough:
 	@cat docs/walkthrough.md
