@@ -97,7 +97,7 @@ uses NAT so the Inspect AI host can reach the model API. 16 VMs total
 |-- vendor/GOAD/          # Pinned upstream GOAD fork (commit 992307a)
 |-- docs/                 # plan.md (mirror of execution plan) + walkthrough.md
 |-- scripts/              # define-domains.py, mN_bake_installers.sh, range_check.sh
-|-- Makefile              # tooling-check, networks, apply, vms, m1..m10, eval, snapshot
+|-- Makefile              # tooling-install, networks, apply, vms, m1..m10, eval, snapshot
 `-- .venv/                # ansible-core + pywinrm (not committed)
 ```
 
@@ -162,8 +162,7 @@ everything.
 ## Quick start
 
 ```
-make tooling-check
-make venv
+make tooling-install          # packer + terraform into ~/bin, host packages, venv, storage pool
 make host-bootstrap            # one-shot: libguestfs perms, swtpm, host iptables
 make terraform-init
 make networks                  # 5 nets (4 victim mode=none + 1 attacker NAT)

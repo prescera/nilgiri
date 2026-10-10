@@ -1,4 +1,4 @@
-.PHONY: help tooling-check venv terraform-init networks plan apply destroy \
+.PHONY: help tooling tooling-install tooling-check venv terraform-init networks plan apply destroy \
         vms vms-define vms-start vms-stop vms-destroy range-check \
         host-bootstrap host-clear-leases \
         packer-winserver2022 packer-win11 packer-kali snapshot-all revert-all \
@@ -18,8 +18,15 @@ STORAGE_ROOT  := /mnt/vm-storage/cyber-range
 VENV          := $(CURDIR)/.venv
 PY            := $(VENV)/bin/python
 ANSIBLE       := $(VENV)/bin/ansible-playbook
-PACKER        := $(HOME)/bin/packer
-TERRAFORM     := $(HOME)/bin/terraform
+BIN_DIR       ?= $(HOME)/bin
+PACKER        := $(BIN_DIR)/packer
+TERRAFORM     := $(BIN_DIR)/terraform
+# Pin these to hold packer/terraform at a known version; `latest` resolves
+# against the HashiCorp releases API on first install only (an already-present
+# binary is left alone).
+PACKER_VERSION    ?= latest
+TERRAFORM_VERSION ?= latest
+POOL_PATH     ?= /mnt/vm-storage
 TFDIR         := $(CURDIR)/terraform/libvirt
 MODEL         ?= anthropic/claude-opus-4-7
 SNAP_NAME	  ?= clean-eval
@@ -35,7 +42,9 @@ M4S3_EVARS    := -e m4s3_require_system=$(M4S3_REQUIRE_SYSTEM)
 
 help:
 	@echo "Targets:"
-	@echo "  tooling-check         Verify packer/terraform/ansible/virsh present"
+	@echo "  tooling-install       Install packer/terraform (~/bin), host packages, the vm-storage pool. Prompts sudo."
+	@echo "                        Vars: PACKER_VERSION=/TERRAFORM_VERSION= to pin (default: latest), BIN_DIR= (default ~/bin)"
+	@echo "  tooling-check         Verify packer/terraform/ansible/virsh present without installing anything"
 	@echo "  venv                  Create/refresh project venv with Ansible + pywinrm"
 	@echo "  terraform-init        terraform init (downloads dmacvicar/libvirt provider)"
 	@echo "  networks              Define (terraform) AND start the 5 isolated networks; idempotent, safe after a reboot"
@@ -79,12 +88,23 @@ help:
 	@echo "  smoke-m3 / smoke-m4 / smoke-m4-chain / smoke-m5 / smoke-m6 / smoke-m7 / smoke-m9   Run the per-milestone smoke test from kali (copies script+manifest, ensures tun0, runs)"
 	@echo "                        Run against a CLEAN, agent-free range. Vars: SKIP_M6=1 (m5), SVC_DEPLOY=<pw> (m7), PROXYCHAINS=1 (m9). m6/smoke-m5-chain need scripts/bin/PrintSpoofer.exe"
 
+# Install everything the range drives from the host: packer + terraform into
+# $(BIN_DIR), the apt packages the bake/smoke scripts shell out to, the Ansible
+# venv, and the vm-storage libvirt pool. Idempotent -- each step no-ops when
+# already satisfied, so re-running after a partial setup is safe. Prompts sudo
+# for the apt + pool steps only, and only when something is actually missing.
+tooling tooling-install:
+	@test -x $(ANSIBLE) || $(MAKE) venv
+	@BIN_DIR=$(BIN_DIR) VENV=$(VENV) POOL_PATH=$(POOL_PATH) \
+	    PACKER_VERSION=$(PACKER_VERSION) TERRAFORM_VERSION=$(TERRAFORM_VERSION) \
+	    $(CURDIR)/scripts/install_tooling.sh
+
+# Verify-only: same assertions, installs nothing. Non-zero exit lists what is
+# missing and points at `make tooling-install`.
 tooling-check:
-	@command -v $(PACKER)    >/dev/null && echo "packer ok"      || (echo "packer missing" && exit 1)
-	@command -v $(TERRAFORM) >/dev/null && echo "terraform ok"   || (echo "terraform missing" && exit 1)
-	@command -v virsh        >/dev/null && echo "virsh ok"       || (echo "virsh missing" && exit 1)
-	@test -x $(ANSIBLE)                 && echo "ansible ok"     || (echo "ansible venv missing -- run make venv" && exit 1)
-	@virsh pool-info vm-storage >/dev/null 2>&1 && echo "pool vm-storage ok" || (echo "libvirt pool vm-storage not found" && exit 1)
+	@BIN_DIR=$(BIN_DIR) VENV=$(VENV) POOL_PATH=$(POOL_PATH) \
+	    PACKER_VERSION=$(PACKER_VERSION) TERRAFORM_VERSION=$(TERRAFORM_VERSION) \
+	    $(CURDIR)/scripts/install_tooling.sh --check
 
 venv:
 	python3 -m venv $(VENV)

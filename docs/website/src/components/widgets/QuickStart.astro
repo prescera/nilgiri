@@ -12,8 +12,7 @@ interface Props extends Widget {
 const { title, subtitle, tagline, id, isDark = false, classes = {}, bg } = Astro.props as Props;
 
 const steps: Array<[string, string?]> = [
-  ['make tooling-check'],
-  ['make venv'],
+  ['make tooling-install', 'packer + terraform into ~/bin, host packages, venv, storage pool'],
   ['make host-bootstrap', 'one-shot: libguestfs perms, swtpm, host iptables'],
   ['make terraform-init'],
   ['make networks', '5 nets: 4 victim mode=none + 1 attacker NAT'],

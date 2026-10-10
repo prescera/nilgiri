@@ -31,8 +31,7 @@ The full prerequisites and per-milestone role documentation live in the
 [repository README](README.md). The short version:
 
 ```
-make tooling-check
-make venv
+make tooling-install          # packer + terraform into ~/bin, host packages, venv, storage pool
 make host-bootstrap            # one-shot: libguestfs perms, swtpm, host iptables
 make terraform-init
 make networks                  # 5 nets (4 victim mode=none + 1 attacker NAT)
